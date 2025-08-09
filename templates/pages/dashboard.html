@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - TTS SaaS{% endblock %}
+{% block content %}
+<script>window.PREFERRED_VOICE = '{{ preferred_voice|escapejs }}'</script>
+<h2 class="text-2xl font-bold mb-6">Text to Speech</h2>
+<div class="grid gap-4 md:grid-cols-2">
+  <textarea id="tts-text" class="w-full h-40 p-3 border rounded" placeholder="Enter text..."></textarea>
+  <div>
+    <label class="block text-sm font-medium mb-2">Voice</label>
+    <select id="voice" class="w-full p-2 border rounded"></select>
+    <div class="mt-3 flex gap-2">
+      <button id="play" class="px-4 py-2 bg-primary text-white rounded hover:opacity-90">Play</button>
+      <button id="save" class="px-4 py-2 bg-gray-800 text-white rounded hover:opacity-90">Save as Preferred</button>
+    </div>
+    <audio id="audio" controls class="mt-4 w-full"></audio>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadVoices(){
+  const res = await fetch('/tts/voices/');
+  const data = await res.json();
+  const sel = document.getElementById('voice');
+  sel.innerHTML = '';
+  data.voices.slice(0, 50).forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.shortName; opt.textContent = `${v.shortName} (${v.gender})`;
+    sel.appendChild(opt);
+  });
+  if (window.PREFERRED_VOICE) {
+    sel.value = window.PREFERRED_VOICE;
+  }
+}
+async function play(){
+  const text = document.getElementById('tts-text').value;
+  const voice = document.getElementById('voice').value;
+  const resp = await fetch('/tts/speak/', {method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: new URLSearchParams({text, voice})});
+  const blob = await resp.blob();
+  document.getElementById('audio').src = URL.createObjectURL(blob);
+}
+function getCookie(name){const v=`; ${document.cookie}`.split(`; ${name}=`);if(v.length===2) return v.pop().split(';').shift();}
+loadVoices();
+
+document.getElementById('play').addEventListener('click', play);
+document.getElementById('save').addEventListener('click', async ()=>{
+  const voice = document.getElementById('voice').value;
+  const resp = await fetch('/tts/save-voice/', {method:'POST', headers:{'X-CSRFToken': getCookie('csrftoken')}, body:new URLSearchParams({voice})});
+});
+</script>
+{% endblock %}
