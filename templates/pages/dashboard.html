@@ -19,7 +19,7 @@
 {% block scripts %}
 <script>
 async function loadVoices(){
-  const res = await fetch('/tts/voices/');
+  const res = await fetch('/tts/voices/?young=1&gender=female&locale=en-us&limit=50');
   const data = await res.json();
   const sel = document.getElementById('voice');
   sel.innerHTML = '';

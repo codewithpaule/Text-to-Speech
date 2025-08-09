@@ -11,13 +11,41 @@ import edge_tts
 @require_GET
 async def voices(request):
     voices_list = await edge_tts.list_voices()
+
+    # Query params
+    young_only = request.GET.get('young', '').lower() in {'1', 'true', 'yes', 'y'}
+    gender = request.GET.get('gender', '').strip().lower()  # 'male' | 'female'
+    locale = request.GET.get('locale', '').strip().lower()  # e.g., 'en-us'
+    limit = int(request.GET.get('limit', '100'))
+
+    def is_young(v: dict) -> bool:
+        voice_tag = v.get('VoiceTag') or {}
+        blob = (str(voice_tag) + ' ' + v.get('ShortName', '') + ' ' + v.get('DisplayName', '')).lower()
+        # Heuristic: look for child/teen keywords
+        return any(k in blob for k in ['child', 'kid', 'teen'])
+
+    filtered = []
+    for v in voices_list:
+        if gender and v.get('Gender', '').lower() != gender:
+            continue
+        if locale and v.get('Locale', '').lower() != locale:
+            continue
+        if young_only and not is_young(v):
+            continue
+        filtered.append(v)
+
+    # Prefer young voices first if not explicitly filtering
+    if not young_only:
+        filtered.sort(key=lambda x: 0 if is_young(x) else 1)
+
     simple = [
         {
-            'shortName': v['ShortName'],
-            'gender': v['Gender'],
-            'locale': v['Locale'],
+            'shortName': v.get('ShortName'),
+            'gender': v.get('Gender'),
+            'locale': v.get('Locale'),
+            'voiceTag': v.get('VoiceTag', {}),
         }
-        for v in voices_list
+        for v in filtered[:limit]
     ]
     return JsonResponse({'voices': simple})
 
