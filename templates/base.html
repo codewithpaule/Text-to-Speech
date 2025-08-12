@@ -16,8 +16,8 @@
       <div class="space-x-4">
         <a href="/" class="hover:text-primary">Home</a>
         <a href="/about/" class="hover:text-primary">About</a>
-        <a href="/pricing/" class="hover:text-primary">Pricing</a>
         {% if user.is_authenticated %}
+          <a href="/chat/" class="hover:text-primary">Chat</a>
           <a href="/tts/dashboard/" class="hover:text-primary">Dashboard</a>
           <a href="/accounts/logout/" class="hover:text-primary">Logout</a>
         {% else %}
