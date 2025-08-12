@@ -24,6 +24,7 @@ urlpatterns = [
     path('payments/', include(('payments.urls', 'payments'), namespace='payments')),
     path('subscriptions/', include(('subscriptions.urls', 'subscriptions'), namespace='subscriptions')),
     path('tts/', include(('tts.urls', 'tts'), namespace='tts')),
+    path('chat/', include(('chat.urls', 'chat'), namespace='chat')),
     path('', TemplateView.as_view(template_name='pages/home.html'), name='home'),
     path('about/', TemplateView.as_view(template_name='pages/about.html'), name='about'),
     path('pricing/', TemplateView.as_view(template_name='pages/pricing.html'), name='pricing'),

@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block title %}Chat - TTS SaaS{% endblock %}
+{% block content %}
+<script>
+  window.PREFERRED_VOICE = '{{ preferred_voice|escapejs }}'
+  window.DEFAULT_MODEL = '{{ default_model|escapejs }}'
+  window.INITIAL_CHAT_ID = '{{ initial_chat_id|default:''|escapejs }}'
+</script>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[70vh]">
+  <aside class="md:col-span-1 bg-white border rounded-lg overflow-hidden flex flex-col">
+    <div class="p-4 border-b flex items-center justify-between">
+      <h3 class="font-semibold">Your Chats</h3>
+      <button id="newChatBtn" class="text-sm px-3 py-1 bg-primary text-white rounded">New</button>
+    </div>
+    <div id="chatList" class="flex-1 overflow-y-auto divide-y"></div>
+  </aside>
+
+  <section class="md:col-span-2 bg-white border rounded-lg flex flex-col">
+    <div class="p-4 border-b flex items-center gap-3 flex-wrap">
+      <select id="modelSelect" class="p-2 border rounded">
+        <option value="gpt-4o-mini">gpt-4o-mini</option>
+        <option value="gpt-4o">gpt-4o</option>
+        <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+        <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+      </select>
+      <span id="chatTitle" class="font-semibold text-gray-700"></span>
+    </div>
+
+    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"></div>
+
+    <div class="p-4 border-t">
+      <form id="sendForm" class="flex gap-2">
+        {% csrf_token %}
+        <input id="messageInput" class="flex-1 p-2 border rounded" placeholder="Type a message..." />
+        <button class="px-4 py-2 bg-primary text-white rounded">Send</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const chatListEl = document.getElementById('chatList');
+  const messagesEl = document.getElementById('messages');
+  const sendForm = document.getElementById('sendForm');
+  const messageInput = document.getElementById('messageInput');
+  const modelSelect = document.getElementById('modelSelect');
+  const chatTitleEl = document.getElementById('chatTitle');
+  const newChatBtn = document.getElementById('newChatBtn');
+
+  let currentChatId = window.INITIAL_CHAT_ID || '';
+  let currentModel = window.DEFAULT_MODEL || modelSelect.value;
+  if (currentModel) modelSelect.value = currentModel;
+
+  function getCookie(name){
+    const v=`; ${document.cookie}`.split(`; ${name}=`);
+    if(v.length===2) return v.pop().split(';').shift();
+  }
+
+  function renderChatItem(chat){
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = 'block p-3 hover:bg-gray-50 ' + (String(chat.id)===String(currentChatId) ? 'bg-gray-100' : '');
+    a.textContent = chat.title;
+    a.addEventListener('click', (e)=>{ e.preventDefault(); selectChat(chat.id); });
+    return a;
+  }
+
+  async function loadChats(){
+    const res = await fetch('/chat/list/');
+    const data = await res.json();
+    chatListEl.innerHTML = '';
+    data.chats.forEach(c => chatListEl.appendChild(renderChatItem(c)));
+  }
+
+  function renderMessage(msg){
+    const wrap = document.createElement('div');
+    const isUser = msg.role === 'user';
+    wrap.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
+    const bubble = document.createElement('div');
+    bubble.className = 'max-w-[80%] rounded px-3 py-2 ' + (isUser ? 'bg-primary text-white rounded-br-none' : 'bg-white border rounded-bl-none');
+    bubble.textContent = msg.content;
+    wrap.appendChild(bubble);
+
+    if (!isUser) {
+      const controls = document.createElement('div');
+      controls.className = 'flex items-center gap-2 ml-2';
+      const listenBtn = document.createElement('button');
+      listenBtn.className = 'text-sm px-2 py-1 border rounded hover:bg-gray-50';
+      listenBtn.textContent = 'Listen';
+      listenBtn.addEventListener('click', ()=>playTTS(msg.content));
+      controls.appendChild(listenBtn);
+      wrap.appendChild(controls);
+    }
+
+    return wrap;
+  }
+
+  async function loadChat(chatId){
+    const res = await fetch(`/chat/api/chat/${chatId}/`);
+    const data = await res.json();
+    messagesEl.innerHTML = '';
+    chatTitleEl.textContent = data.chat.title;
+    modelSelect.value = data.chat.model || modelSelect.value;
+    currentModel = modelSelect.value;
+    data.messages.forEach(m => messagesEl.appendChild(renderMessage(m)));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  async function selectChat(chatId){
+    currentChatId = chatId;
+    await loadChats();
+    await loadChat(chatId);
+  }
+
+  async function sendMessage(e){
+    e && e.preventDefault();
+    const text = messageInput.value.trim();
+    if (!text) return;
+    const form = new URLSearchParams();
+    form.set('message', text);
+    if (currentChatId) form.set('chat_id', currentChatId);
+    form.set('model', modelSelect.value);
+
+    const res = await fetch('/chat/send/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+      body: form
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      alert(err || 'Failed to send');
+      return;
+    }
+    const data = await res.json();
+    if (data.created) {
+      currentChatId = data.chat_id;
+      await loadChats();
+    }
+    // Render user and assistant messages
+    messagesEl.appendChild(renderMessage({role:'user', content:text}));
+    messagesEl.appendChild(renderMessage(data.assistant));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    chatTitleEl.textContent = data.title;
+    messageInput.value = '';
+  }
+
+  async function playTTS(text){
+    const voice = window.PREFERRED_VOICE || 'en-US-AriaNeural';
+    const resp = await fetch('/tts/speak/', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCookie('csrftoken')},
+      body: new URLSearchParams({text, voice})
+    });
+    if (!resp.ok) return;
+    const blob = await resp.blob();
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.play();
+  }
+
+  modelSelect.addEventListener('change', ()=>{
+    currentModel = modelSelect.value;
+  });
+  newChatBtn.addEventListener('click', async ()=>{
+    currentChatId = '';
+    chatTitleEl.textContent = '';
+    messagesEl.innerHTML = '';
+    messageInput.focus();
+  });
+  sendForm.addEventListener('submit', sendMessage);
+
+  loadChats().then(()=>{
+    if (currentChatId) {
+      loadChat(currentChatId);
+    }
+  });
+</script>
+{% endblock %}
