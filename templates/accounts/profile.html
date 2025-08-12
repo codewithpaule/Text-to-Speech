@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Profile</h5>
+          <form method="post">{% csrf_token %}
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Display name</label>
+                <input name="display_name" class="form-control" value="{{ user_obj.display_name }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Full name</label>
+                <input class="form-control" value="{{ user_obj.full_name }}" disabled>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Avatar URL</label>
+                <input name="avatar_url" class="form-control" value="{{ user_obj.avatar_url }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Theme</label>
+                <select name="theme_mode" class="form-select">
+                  <option value="light" {% if user_obj.theme_mode == 'light' %}selected{% endif %}>Light</option>
+                  <option value="dark" {% if user_obj.theme_mode == 'dark' %}selected{% endif %}>Dark</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Accent color</label>
+                <input type="color" name="accent_color" class="form-control form-control-color" value="{{ user_obj.accent_color }}">
+              </div>
+            </div>
+            <div class="mt-3 d-flex justify-content-end">
+              <button class="btn btn-primary">Save changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
