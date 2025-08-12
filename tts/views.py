@@ -168,3 +168,10 @@ def speak_cloned(request):
             return JsonResponse({'error': str(e)}, status=500)
 
     return HttpResponseBadRequest('Unsupported voice provider')
+
+
+@login_required
+def clone_page(request):
+    return render(request, 'pages/custom_voice.html', {
+        'cloned_voice_ready': bool(getattr(request.user, 'cloned_voice_id', '') and getattr(request.user, 'cloned_voice_provider', '')),
+    })

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}Custom Voice - TTS SaaS{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="bg-gradient-to-r from-sky-500 to-cyan-400 text-white rounded-xl p-6 shadow mb-6">
+    <h1 class="text-2xl font-bold">Your Custom Voice</h1>
+    <p class="opacity-90 mt-1">Record a short sample, clone it, and generate speech that sounds like you.</p>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <section class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow">
+      <h2 class="font-semibold mb-3">1) Record a voice sample</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Speak clearly for 10–30 seconds in a quiet room.</p>
+      <div class="flex items-center gap-3">
+        <button id="recordBtn" class="px-4 py-2 rounded border hover:bg-gray-50 dark:hover:bg-neutral-800">🎙️ Start</button>
+        <button id="stopBtn" class="px-4 py-2 rounded border hover:bg-gray-50 dark:hover:bg-neutral-800" disabled>⏹️ Stop</button>
+        <span id="statusText" class="text-sm"></span>
+      </div>
+      <div class="mt-4">
+        <button id="uploadBtn" class="px-4 py-2 bg-primary text-white rounded hover:opacity-90 disabled:opacity-50" disabled>Upload sample</button>
+        <span id="cloneState" class="ml-2 text-sm">{{ cloned_voice_ready|yesno:"Ready,Not set" }}</span>
+      </div>
+      <audio id="preview" class="mt-4 w-full" controls></audio>
+    </section>
+
+    <section class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow">
+      <h2 class="font-semibold mb-3">2) Type text and generate</h2>
+      <textarea id="textInput" class="w-full h-36 p-3 rounded border dark:bg-neutral-900 dark:border-neutral-700" placeholder="Enter text to synthesize..."></textarea>
+      <div class="flex items-center gap-3 mt-3">
+        <button id="speakBtn" class="px-4 py-2 bg-primary text-white rounded hover:opacity-90">Generate</button>
+        <span id="helpText" class="text-sm text-gray-600 dark:text-gray-400">Uses your cloned voice if available.</span>
+      </div>
+      <audio id="output" class="mt-4 w-full" controls></audio>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const recordBtn = document.getElementById('recordBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const statusText = document.getElementById('statusText');
+  const preview = document.getElementById('preview');
+  const cloneState = document.getElementById('cloneState');
+  const textInput = document.getElementById('textInput');
+  const speakBtn = document.getElementById('speakBtn');
+  const output = document.getElementById('output');
+
+  function getCookie(name){
+    const v=`; ${document.cookie}`.split(`; ${name}=`);
+    if(v.length===2) return v.pop().split(';').shift();
+  }
+
+  let mediaRecorder; let chunks = []; let recordedBlob;
+
+  recordBtn.addEventListener('click', async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = []; recordedBlob = null;
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorder.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+      preview.src = URL.createObjectURL(recordedBlob);
+      uploadBtn.disabled = false;
+      statusText.textContent = 'Sample ready. Review and upload.';
+    };
+    mediaRecorder.start();
+    statusText.textContent = 'Recording...';
+    recordBtn.disabled = true; stopBtn.disabled = false;
+  });
+
+  stopBtn.addEventListener('click', () => {
+    stopBtn.disabled = true;
+    mediaRecorder && mediaRecorder.stop();
+    recordBtn.disabled = false;
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!recordedBlob) return;
+    uploadBtn.disabled = true;
+    statusText.textContent = 'Uploading sample...';
+    const form = new FormData();
+    form.append('audio', recordedBlob, 'sample.webm');
+    form.append('name', 'My Custom Voice');
+    const res = await fetch('/tts/clone/upload/', { method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: form });
+    if (res.ok){
+      cloneState.textContent = 'Ready';
+      statusText.textContent = 'Cloned successfully!';
+    } else {
+      const err = await res.text();
+      statusText.textContent = err || 'Upload failed';
+    }
+    uploadBtn.disabled = false;
+  });
+
+  speakBtn.addEventListener('click', async () => {
+    const text = textInput.value.trim();
+    if (!text) return;
+    textInput.value = '';
+    output.removeAttribute('src'); output.load();
+    const res = await fetch('/tts/clone/speak/', { method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: new URLSearchParams({ text }) });
+    if (!res.ok){
+      const err = await res.text();
+      alert(err || 'Failed to synthesize');
+      return;
+    }
+    const blob = await res.blob();
+    output.src = URL.createObjectURL(blob);
+    output.play();
+  });
+</script>
+{% endblock %}

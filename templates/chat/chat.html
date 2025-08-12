@@ -25,6 +25,7 @@
   <section class="bg-white dark:bg-neutral-900 border rounded-lg flex flex-col shadow">
     <div class="p-3 border-b dark:border-neutral-800 flex items-center gap-3 flex-wrap">
       <select id="modelSelect" class="p-2 border rounded dark:bg-neutral-900 dark:border-neutral-700">
+        <option value="gpt-5.0">gpt-5.0</option>
         <option value="gpt-4o-mini">gpt-4o-mini</option>
         <option value="gpt-4o">gpt-4o</option>
         <option value="gpt-4.1-mini">gpt-4.1-mini</option>
@@ -47,6 +48,7 @@
           <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
             <span>Model</span>
             <select id="modelSelectInline" class="p-1 border rounded dark:bg-neutral-900 dark:border-neutral-700">
+              <option value="gpt-5.0">gpt-5.0</option>
               <option value="gpt-4o-mini">gpt-4o-mini</option>
               <option value="gpt-4o">gpt-4o</option>
               <option value="gpt-4.1-mini">gpt-4.1-mini</option>
@@ -103,23 +105,29 @@
     if(v.length===2) return v.pop().split(';').shift();
   }
 
-  function renderChatItem(chat){
-    const a = document.createElement('a');
-    a.href = '#';
-    a.className = 'block p-3 hover:bg-gray-50 dark:hover:bg-neutral-800 transition ' + (String(chat.id)===String(currentChatId) ? 'bg-gray-100 dark:bg-neutral-800' : '');
-    a.textContent = chat.title;
-    a.addEventListener('click', (e)=>{ e.preventDefault(); selectChat(chat.id); });
-    return a;
+  function escapeHtml(str){
+    return str.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
   }
 
-  async function loadChats(){
-    const res = await fetch('/chat/list/');
-    const data = await res.json();
-    chatListEl.innerHTML = '';
-    const q = chatSearch.value.trim().toLowerCase();
-    data.chats
-      .filter(c => !q || c.title.toLowerCase().includes(q))
-      .forEach(c => chatListEl.appendChild(renderChatItem(c)));
+  function renderMarkdownLite(text){
+    // Basic rendering: preserve newlines, render -, •, and numbered lists, simple paragraphs
+    const safe = escapeHtml(text || '');
+    const lines = safe.split(/\r?\n/);
+    let html = '';
+    let inList = false;
+    for (const line of lines){
+      const trimmed = line.trim();
+      const isBullet = /^(?:[-*•]|\d+\.)\s+/.test(trimmed);
+      if (isBullet){
+        if (!inList){ html += '<ul class="list-disc pl-6 space-y-1">'; inList = true; }
+        html += `<li>${trimmed.replace(/^(?:[-*•]|\d+\.)\s+/, '')}</li>`;
+      } else {
+        if (inList){ html += '</ul>'; inList = false; }
+        if (trimmed === '') html += '<br />'; else html += `<p class="whitespace-pre-wrap">${trimmed}</p>`;
+      }
+    }
+    if (inList) html += '</ul>';
+    return html;
   }
 
   function renderMessage(msg){
@@ -128,7 +136,8 @@
     wrap.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
     const bubble = document.createElement('div');
     bubble.className = 'max-w-[80%] rounded px-3 py-2 transition transform ' + (isUser ? 'bg-primary text-white rounded-br-none animate-[slideIn_.25s_ease]' : 'bg-white dark:bg-neutral-900 border dark:border-neutral-800 text-gray-900 dark:text-gray-100 rounded-bl-none animate-[slideIn_.25s_ease]');
-    bubble.textContent = msg.content;
+    bubble.style.whiteSpace = 'pre-wrap';
+    bubble.innerHTML = renderMarkdownLite(msg.content);
     wrap.appendChild(bubble);
 
     if (!isUser) {
@@ -144,6 +153,25 @@
     }
 
     return wrap;
+  }
+
+  async function loadChats(){
+    const res = await fetch('/chat/list/');
+    const data = await res.json();
+    chatListEl.innerHTML = '';
+    const q = chatSearch.value.trim().toLowerCase();
+    data.chats
+      .filter(c => !q || c.title.toLowerCase().includes(q))
+      .forEach(c => chatListEl.appendChild(renderChatItem(c)));
+  }
+
+  function renderChatItem(chat){
+    const a = document.createElement('a');
+    a.href = '#';
+    a.className = 'block p-3 hover:bg-gray-50 dark:hover:bg-neutral-800 transition ' + (String(chat.id)===String(currentChatId) ? 'bg-gray-100 dark:bg-neutral-800' : '');
+    a.textContent = chat.title;
+    a.addEventListener('click', (e)=>{ e.preventDefault(); selectChat(chat.id); });
+    return a;
   }
 
   async function loadChat(chatId){
@@ -176,10 +204,25 @@
     return currentChatId;
   }
 
+  function typeText(element, fullText, speedMs){
+    return new Promise(resolve => {
+      let i = 0;
+      const timer = setInterval(()=>{
+        i++;
+        element.innerHTML = renderMarkdownLite(fullText.slice(0, i));
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+        if (i >= fullText.length){ clearInterval(timer); resolve(); }
+      }, speedMs);
+    });
+  }
+
   async function sendMessage(e){
     e && e.preventDefault();
     const text = messageInput.value.trim();
     if (!text) return;
+
+    // Clear input immediately
+    messageInput.value = '';
 
     await ensureChatCreated(text);
 
@@ -188,7 +231,7 @@
     if (currentChatId) form.set('chat_id', currentChatId);
     form.set('model', modelSelect.value);
 
-    // Optimistic render
+    // Optimistic render user message
     messagesEl.appendChild(renderMessage({role:'user', content:text}));
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
@@ -207,10 +250,36 @@
       currentChatId = data.chat_id;
       await loadChats();
     }
-    messagesEl.appendChild(renderMessage(data.assistant));
+
+    // Typing effect for assistant
+    const wrap = document.createElement('div');
+    wrap.className = 'flex justify-start';
+    const bubble = document.createElement('div');
+    bubble.className = 'max-w-[80%] rounded px-3 py-2 bg-white dark:bg-neutral-900 border dark:border-neutral-800 text-gray-900 dark:text-gray-100 rounded-bl-none animate-[slideIn_.25s_ease]';
+    bubble.style.whiteSpace = 'pre-wrap';
+    wrap.appendChild(bubble);
+
+    const controls = document.createElement('div');
+    controls.className = 'flex items-center gap-2 ml-2';
+    const listenBtn = document.createElement('button');
+    listenBtn.className = 'text-sm px-2 py-1 border rounded hover:bg-gray-50 dark:hover:bg-neutral-800';
+    listenBtn.textContent = '🔊';
+    listenBtn.title = 'Play audio';
+    controls.appendChild(listenBtn);
+
+    const row = document.createElement('div');
+    row.className = 'flex items-start';
+    row.appendChild(wrap.firstChild); // bubble
+    row.appendChild(controls);
+
+    messagesEl.appendChild(row);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    const full = data.assistant && data.assistant.content ? data.assistant.content : '';
+    listenBtn.addEventListener('click', ()=>playTTS(full));
+    await typeText(bubble, full, 12);
+
     chatTitleEl.textContent = data.title;
-    messageInput.value = '';
   }
 
   async function populateVoices(){
