@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+{% block title %}Custom Voice - TTS SaaS{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+  <div class="bg-gradient-to-r from-sky-500 to-cyan-400 text-white rounded-xl p-6 shadow mb-6">
+    <h1 class="text-2xl font-bold">Your Custom Voice</h1>
+    <p class="opacity-90 mt-1">Record a short sample, clone it, and generate speech that sounds like you.</p>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <section class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow">
+      <h2 class="font-semibold mb-3">1) Record or Upload Voice Sample</h2>
+      <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Speak clearly for 10–30 seconds in a quiet room.</p>
+      
+      <!-- Recording Section -->
+      <div class="mb-4">
+        <div class="flex items-center gap-3 mb-2">
+          <button id="recordBtn" class="px-4 py-2 rounded border hover:bg-gray-50 dark:hover:bg-neutral-800">🎙️ Start</button>
+          <button id="stopBtn" class="px-4 py-2 rounded border hover:bg-gray-50 dark:hover:bg-neutral-800" disabled>⏹️ Stop</button>
+          <span id="timer" class="text-sm font-mono">00:30</span>
+          <span id="statusText" class="text-sm"></span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mb-2">
+          <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
+      </div>
+      
+      <!-- Upload Section -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Or upload audio file:</label>
+        <div class="flex items-center gap-2">
+          <input type="file" id="fileInput" accept="audio/*" class="hidden">
+          <button id="selectFileBtn" class="px-4 py-2 rounded border hover:bg-gray-50 dark:hover:bg-neutral-800">📁 Select File</button>
+          <span id="fileName" class="text-sm text-gray-500 dark:text-gray-400">No file selected</span>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Supported formats: MP3, WAV, WEBM (max 30 seconds)</p>
+      </div>
+      
+      <div class="mt-4">
+        <button id="uploadBtn" class="px-4 py-2 bg-primary text-white rounded hover:opacity-90 disabled:opacity-50" disabled>Upload sample</button>
+        <span id="cloneState" class="ml-2 text-sm">{{ cloned_voice_ready|yesno:"Ready,Not set" }}</span>
+      </div>
+      <audio id="preview" class="mt-4 w-full" controls></audio>
+    </section>
+
+    <section class="bg-white dark:bg-neutral-900 border rounded-xl p-5 shadow">
+      <h2 class="font-semibold mb-3">2) Type text and generate</h2>
+      <textarea id="textInput" class="w-full h-36 p-3 rounded border dark:bg-neutral-900 dark:border-neutral-700" placeholder="Enter text to synthesize..."></textarea>
+      <div class="flex items-center gap-3 mt-3">
+        <button id="speakBtn" class="px-4 py-2 bg-primary text-white rounded hover:opacity-90">Generate</button>
+        <span id="helpText" class="text-sm text-gray-600 dark:text-gray-400">Uses your cloned voice if available.</span>
+      </div>
+      <audio id="output" class="mt-4 w-full" controls></audio>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const recordBtn = document.getElementById('recordBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const statusText = document.getElementById('statusText');
+  const preview = document.getElementById('preview');
+  const cloneState = document.getElementById('cloneState');
+  const textInput = document.getElementById('textInput');
+  const speakBtn = document.getElementById('speakBtn');
+  const output = document.getElementById('output');
+  const fileInput = document.getElementById('fileInput');
+  const selectFileBtn = document.getElementById('selectFileBtn');
+  const fileName = document.getElementById('fileName');
+  const timer = document.getElementById('timer');
+  const progressBar = document.getElementById('progressBar');
+
+  let mediaRecorder;
+  let chunks = [];
+  let recordedBlob;
+  let recordingTimer;
+  let timeLeft = 30;
+  let countdownInterval;
+
+  function getCookie(name) {
+    const v = `; ${document.cookie}`.split(`; ${name}=`);
+    if (v.length === 2) return v.pop().split(';').shift();
+  }
+
+  function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+    const secs = (seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  }
+
+  function startCountdown() {
+    clearInterval(countdownInterval);
+    timeLeft = 30;
+    timer.textContent = formatTime(timeLeft);
+    progressBar.style.width = '100%';
+    
+    countdownInterval = setInterval(() => {
+      timeLeft--;
+      timer.textContent = formatTime(timeLeft);
+      progressBar.style.width = `${(timeLeft / 30) * 100}%`;
+      
+      if (timeLeft <= 0) {
+        stopRecording();
+      }
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    clearInterval(countdownInterval);
+    timer.textContent = formatTime(30);
+    progressBar.style.width = '0%';
+  }
+
+  function stopRecording() {
+    stopBtn.disabled = true;
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    stopCountdown();
+    recordBtn.disabled = false;
+  }
+
+  // File selection handler
+  selectFileBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', (e) => {
+    if (fileInput.files.length > 0) {
+      const file = fileInput.files[0];
+      fileName.textContent = file.name;
+      
+      // Validate file type and duration
+      const audio = new Audio();
+      audio.src = URL.createObjectURL(file);
+      
+      audio.onloadedmetadata = () => {
+        if (audio.duration > 30) {
+          statusText.textContent = 'Error: File must be 30 seconds or shorter';
+          fileName.textContent = 'Invalid duration';
+          fileInput.value = '';
+          uploadBtn.disabled = true;
+        } else {
+          statusText.textContent = 'File ready for upload';
+          recordedBlob = file;
+          preview.src = URL.createObjectURL(file);
+          uploadBtn.disabled = false;
+        }
+      };
+      
+      audio.onerror = () => {
+        statusText.textContent = 'Error: Invalid audio file';
+        fileName.textContent = 'Invalid file';
+        fileInput.value = '';
+        uploadBtn.disabled = true;
+      };
+    }
+  });
+
+  // Recording handler
+  recordBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunks = [];
+      recordedBlob = null;
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      
+      mediaRecorder.ondataavailable = e => {
+        if (e.data.size) chunks.push(e.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+        preview.src = URL.createObjectURL(recordedBlob);
+        uploadBtn.disabled = false;
+        statusText.textContent = 'Sample ready. Review and upload.';
+        fileName.textContent = 'Recording.webm';
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start(100); // Collect data every 100ms
+      startCountdown();
+      statusText.textContent = 'Recording...';
+      recordBtn.disabled = true;
+      stopBtn.disabled = false;
+      fileInput.value = ''; // Clear any selected file
+    } catch (error) {
+      statusText.textContent = `Error: ${error.message}`;
+      console.error('Recording error:', error);
+    }
+  });
+
+  stopBtn.addEventListener('click', stopRecording);
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!recordedBlob) return;
+    
+    uploadBtn.disabled = true;
+    statusText.textContent = 'Uploading...';
+    
+    try {
+        const form = new FormData();
+        // Use explicit filename and type
+        form.append('audio', recordedBlob, 'recording.mp3'); 
+        form.append('name', 'My Voice Clone');
+        
+        const res = await fetch('/tts/clone/upload/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: form
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+            throw new Error(data.detail || data.error || 'Upload failed');
+        }
+        
+        cloneState.textContent = 'Ready';
+        statusText.textContent = `Voice cloned! ID: ${data.voice_id}`;
+        
+    } catch (error) {
+        statusText.textContent = error.message;
+        console.error('Upload error:', error);
+    } finally {
+        uploadBtn.disabled = false;
+    }
+});
+
+
+  speakBtn.addEventListener('click', async () => {
+    const text = textInput.value.trim();
+    if (!text) return;
+    
+    speakBtn.disabled = true;
+    output.removeAttribute('src');
+    output.load();
+    
+    try {
+      const res = await fetch('/tts/clone/speak/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCookie('csrftoken'),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ text })
+      });
+      
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to synthesize' }));
+        throw new Error(error.error || 'Failed to synthesize');
+      }
+      
+      const blob = await res.blob();
+      output.src = URL.createObjectURL(blob);
+      await output.play();
+    } catch (error) {
+      statusText.textContent = error.message;
+      console.error('Synthesis error:', error);
+    } finally {
+      speakBtn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

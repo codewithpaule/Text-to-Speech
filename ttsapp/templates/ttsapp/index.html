@@ -1,0 +1,55 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Simple Text to Speech</title>
+</head>
+<body>
+    <h1>Text to Speech Demo</h1>
+    <form method="post" id="ttsForm">
+        {% csrf_token %}
+        <textarea name="text" rows="5" cols="40" placeholder="Enter text here..."></textarea><br/>
+        <button type="submit">Convert to Speech</button>
+    </form>
+
+    <audio id="audioPlayer" controls style="display:none; margin-top: 20px;"></audio>
+    <div id="error" style="color: red; margin-top: 10px;"></div>
+
+    <script>
+        const form = document.getElementById('ttsForm');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const errorDiv = document.getElementById('error');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorDiv.textContent = '';
+            
+            try {
+                const formData = new FormData(form);
+                const response = await fetch("", {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || "Failed to generate speech");
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                audioPlayer.src = url;
+                audioPlayer.style.display = "block";
+                audioPlayer.play();
+            } catch (error) {
+                console.error("Error:", error);
+                errorDiv.textContent = "Error: " + error.message;
+            }
+        });
+    </script>
+</body>
+</html>
