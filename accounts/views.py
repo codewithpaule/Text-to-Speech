@@ -66,7 +66,7 @@ def login_view(request: HttpRequest) -> HttpResponse:
             if not user.is_verified:
                 return render(request, 'accounts/login.html', {'error': 'Please verify your email first'})
             login(request, user)
-            return redirect('tts:dashboard')
+            return redirect('chat:home')
         return render(request, 'accounts/login.html', {'error': 'Invalid credentials'})
     return render(request, 'accounts/login.html')
 
@@ -135,3 +135,16 @@ def reset_password(request: HttpRequest) -> HttpResponse:
         except (User.DoesNotExist, OTP.DoesNotExist):
             return render(request, 'accounts/reset_password.html', {'error': 'Invalid request', 'email': email, 'code': code})
     return render(request, 'accounts/reset_password.html', {'email': email, 'code': code})
+
+
+@login_required
+def profile(request: HttpRequest) -> HttpResponse:
+    user = request.user
+    if request.method == 'POST':
+        user.display_name = request.POST.get('display_name', '').strip()
+        user.avatar_url = request.POST.get('avatar_url', '').strip()
+        user.theme_mode = request.POST.get('theme_mode', user.theme_mode)
+        user.accent_color = request.POST.get('accent_color', user.accent_color)
+        user.save(update_fields=['display_name', 'avatar_url', 'theme_mode', 'accent_color', 'updated_at'])
+        return redirect('accounts:profile')
+    return render(request, 'accounts/profile.html', {'user_obj': user})

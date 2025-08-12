@@ -1,58 +1,56 @@
 {% extends 'base.html' %}
 {% block title %}Home - VoiceGenie{% endblock %}
 {% block content %}
-<div class="max-w-4xl mx-auto">
-  <section class="text-center py-12 md:py-20">
-    <h1 class="text-4xl md:text-5xl font-extrabold mb-6 text-gray-900 dark:text-white">Transform Text into Natural Speech</h1>
-    <p class="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
-      Create lifelike voiceovers with AI-powered text-to-speech. Fast, simple, and powerful.
-    </p>
-    <div class="flex flex-col sm:flex-row justify-center gap-4">
-      <a href="/accounts/register/" class="px-8 py-3 bg-primary text-white text-lg font-medium rounded-lg hover:bg-primary-dark transition shadow-md">
-        Get Started
-      </a>
-      <a href="/about/" class="px-8 py-3 text-primary border border-primary text-lg font-medium rounded-lg hover:bg-primary/10 transition">
-        Learn More
-      </a>
+<section class="py-5 bg-light">
+  <div class="container text-center">
+    <h1 class="display-5 fw-bold mb-3">Your AI chat companion</h1>
+    <p class="lead text-secondary mb-4">Ask questions, brainstorm ideas, and stay productive with a personalized assistant.</p>
+    <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+      <a href="/accounts/register/" class="btn btn-primary btn-lg">Get Started</a>
+      <a href="/about/" class="btn btn-outline-primary btn-lg">Learn More</a>
     </div>
-  </section>
+  </div>
+</section>
 
-  <section class="py-12">
-    <div class="grid md:grid-cols-3 gap-8">
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hover:shadow-lg transition">
-        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+<section class="py-5">
+  <div class="container">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Fast and reliable</h5>
+            <p class="card-text text-secondary">Get answers in seconds with a modern, clean chat experience.</p>
+          </div>
         </div>
-        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Instant Conversion</h3>
-        <p class="text-gray-600 dark:text-gray-400">
-          Convert text to speech in seconds with our lightning-fast AI technology.
-        </p>
       </div>
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hover:shadow-lg transition">
-        <div class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Personalized memory</h5>
+            <p class="card-text text-secondary">Save preferences so responses improve over time.</p>
+          </div>
         </div>
-        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Multiple Voices</h3>
-        <p class="text-gray-600 dark:text-gray-400">
-          Choose from a variety of natural-sounding voices for different use cases.
-        </p>
       </div>
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md hover:shadow-lg transition">
-        <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-          </svg>
+      <div class="col-md-4">
+        <div class="card h-100 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Manage your chats</h5>
+            <p class="card-text text-secondary">Search, pin, rename, and delete conversations with ease.</p>
+          </div>
         </div>
-        <h3 class="text-xl font-semibold mb-2 text-gray-900 dark:text-white">Secure & Private</h3>
-        <p class="text-gray-600 dark:text-gray-400">
-          Your data is always protected with enterprise-grade security measures.
-        </p>
       </div>
     </div>
-  </section>
-</div>
+  </div>
+</section>
+
+<section class="py-5 bg-light">
+  <div class="container">
+    <h4 class="mb-3">Quick start tips</h4>
+    <ul class="list-group list-group-flush">
+      <li class="list-group-item">Use the model selector to choose the best AI for your task.</li>
+      <li class="list-group-item">Pin important chats so they show at the top.</li>
+      <li class="list-group-item">Edit or regenerate to refine a response.</li>
+    </ul>
+  </div>
+</section>
 {% endblock %}

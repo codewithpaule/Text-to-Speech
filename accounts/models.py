@@ -25,17 +25,29 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    THEME_CHOICES = (
+        ('light', 'Light'),
+        ('dark', 'Dark'),
+    )
+
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True)
+    display_name = models.CharField(max_length=255, blank=True, default='')
+    avatar_url = models.URLField(blank=True, default='')
+    theme_mode = models.CharField(max_length=10, choices=THEME_CHOICES, default='light')
+    accent_color = models.CharField(max_length=20, default='#0d6efd')
+
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
+
+    # Deprecated TTS fields retained for backward compatibility (unused)
     preferred_voice = models.CharField(max_length=100, blank=True, default='')
-    created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True)
-    # New: optional cloned voice linkage
     cloned_voice_id = models.CharField(max_length=100, blank=True, null=True)
     cloned_voice_provider = models.CharField(max_length=50, blank=True, null=True)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

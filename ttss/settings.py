@@ -41,11 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'django_crontab',
     'accounts',
-    'payments',
-    'subscriptions',
-    'tts',
     'chat',
 ]
 
@@ -138,22 +134,15 @@ AUTH_USER_MODEL = 'accounts.User'
 
 # Authentication redirects
 LOGIN_URL = 'accounts:login'
-LOGIN_REDIRECT_URL = 'dashboard'
+LOGIN_REDIRECT_URL = 'chat:home'
 LOGOUT_REDIRECT_URL = 'home'
 
 # Email configuration
-PAYSTACK_SECRET_KEY = 'sk_test_eb91f4fb4214cbf165988e87e23203771df4eaa6'
-PAYSTACK_PUBLIC_KEY = 'pk_test_ac4401314b841b125ac08f04db6375f7d999ae90'
-
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 465  # Standard SSL port for Gmail
-EMAIL_USE_TLS = False  # Disabled since we're using SSL
-EMAIL_USE_SSL = True  # Enabled for SSL encryption
-EMAIL_HOST_USER = 'pauleruvwu@gmail.com'  # Your email address
-EMAIL_HOST_PASSWORD = 'ghih kowg utdm jlhu'  # App password (not your main password)
-DEFAULT_FROM_EMAIL = 'Coverter <noreply@nawhoteachu.com>'  # Default sender
-
-CRONJOBS = [
-    ('0 3 * * *', 'subscriptions.cron.send_renewal_reminders')
-]
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
+EMAIL_HOST_USER = 'pauleruvwu@gmail.com'
+EMAIL_HOST_PASSWORD = 'ghih kowg utdm jlhu'
+DEFAULT_FROM_EMAIL = 'Coverter <noreply@nawhoteachu.com>'

@@ -1,3 +1,4 @@
+import os
 import json
 import re
 from typing import List, Dict
@@ -12,6 +13,7 @@ from django.utils import timezone
 from .models import Chat, Message, UserMemory  # Make sure to add UserMemory model
 
 OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions'
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
 DEFAULT_CHAT_MODEL = 'gpt-4o-mini'
 
 # ---------------- MEMORY HELPERS ----------------
@@ -156,13 +158,9 @@ def _generate_title_from_text(text: str) -> str:
 
 @login_required
 def chat_home(request: HttpRequest, chat_id: int | None = None) -> HttpResponse:
-    preferred_voice = getattr(request.user, 'preferred_voice', '') or ''
-    cloned_voice_ready = bool(getattr(request.user, 'cloned_voice_id', '') and getattr(request.user, 'cloned_voice_provider', ''))
     return render(request, 'chat/chat.html', {
         'initial_chat_id': chat_id or '',
-        'preferred_voice': preferred_voice,
         'default_model': DEFAULT_CHAT_MODEL,
-        'cloned_voice_ready': json.dumps(cloned_voice_ready),
     })
 
 
@@ -172,8 +170,8 @@ def list_chats(request: HttpRequest) -> JsonResponse:
     chats = (
         Chat.objects
         .filter(user=request.user)
-        .order_by('-updated_at')
-        .values('id', 'title', 'model', 'updated_at', 'created_at')
+        .order_by('-pinned', '-updated_at')
+        .values('id', 'title', 'model', 'updated_at', 'created_at', 'pinned')
     )
     return JsonResponse({'chats': list(chats)})
 
@@ -182,7 +180,7 @@ def list_chats(request: HttpRequest) -> JsonResponse:
 @require_GET
 def get_chat(request: HttpRequest, chat_id: int) -> JsonResponse:
     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    messages = list(chat.messages.values('role', 'content', 'created_at'))
+    messages = list(chat.messages.values('id', 'role', 'content', 'created_at'))
     return JsonResponse({
         'chat': {
             'id': chat.id,
@@ -190,6 +188,7 @@ def get_chat(request: HttpRequest, chat_id: int) -> JsonResponse:
             'model': chat.model,
             'created_at': chat.created_at,
             'updated_at': chat.updated_at,
+            'pinned': chat.pinned,
         },
         'messages': messages,
     })
@@ -276,31 +275,86 @@ def send_message(request: HttpRequest) -> JsonResponse:
         },
     })
 
+
+@login_required
+@require_POST
+def rename_chat(request: HttpRequest, chat_id: int) -> JsonResponse:
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    title = (request.POST.get('title', '')).strip()
+    if not title:
+        return HttpResponseBadRequest('Title required')
+    chat.title = title
+    chat.save(update_fields=['title', 'updated_at'])
+    return JsonResponse({'ok': True})
+
+@login_required
+@require_POST
+def delete_chat(request: HttpRequest, chat_id: int) -> JsonResponse:
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    chat.delete()
+    return JsonResponse({'ok': True})
+
+@login_required
+@require_POST
+def toggle_pin_chat(request: HttpRequest, chat_id: int) -> JsonResponse:
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    chat.pinned = not chat.pinned
+    chat.save(update_fields=['pinned', 'updated_at'])
+    return JsonResponse({'pinned': chat.pinned})
+
+@login_required
+@require_POST
+def edit_message(request: HttpRequest, message_id: int) -> JsonResponse:
+    message = get_object_or_404(Message, id=message_id, chat__user=request.user)
+    if message.role != 'user':
+        return HttpResponseBadRequest('Only user messages can be edited')
+    new_content = (request.POST.get('content', '')).strip()
+    if not new_content:
+        return HttpResponseBadRequest('Content required')
+    message.content = new_content
+    message.save(update_fields=['content', 'updated_at'])
+    # Update chat timestamp
+    Chat.objects.filter(id=message.chat_id).update(updated_at=timezone.now())
+    return JsonResponse({'ok': True})
+
+@login_required
+@require_POST
+def delete_message(request: HttpRequest, message_id: int) -> JsonResponse:
+    message = get_object_or_404(Message, id=message_id, chat__user=request.user)
+    chat_id = message.chat_id
+    message.delete()
+    Chat.objects.filter(id=chat_id).update(updated_at=timezone.now())
+    return JsonResponse({'ok': True})
+
+@login_required
+@require_POST
+def regenerate_response(request: HttpRequest, chat_id: int) -> JsonResponse:
     if not OPENAI_API_KEY:
         return HttpResponseBadRequest('Server missing OPENAI_API_KEY')
+    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+    model = chat.model or DEFAULT_CHAT_MODEL
 
-    user_text = request.POST.get('message', '').strip()
-    chat_id_str = request.POST.get('chat_id', '').strip()
-    model = (request.POST.get('model', '').strip() or DEFAULT_CHAT_MODEL)
+    # Find the last user message
+    last_user_message = (
+        Message.objects
+        .filter(chat=chat, role='user')
+        .order_by('-created_at')
+        .first()
+    )
+    if not last_user_message:
+        return HttpResponseBadRequest('No user message to regenerate from')
 
-    if not user_text:
-        return HttpResponseBadRequest('Empty message')
+    # Remove the last assistant message if present so we "replace" it
+    last_assistant_message = (
+        Message.objects
+        .filter(chat=chat, role='assistant')
+        .order_by('-created_at')
+        .first()
+    )
+    if last_assistant_message:
+        last_assistant_message.delete()
 
-    chat = None
-    created = False
-    if chat_id_str:
-        chat = get_object_or_404(Chat, id=int(chat_id_str), user=request.user)
-        if chat.model != model:
-            chat.model = model
-            chat.save(update_fields=['model', 'updated_at'])
-    else:
-        title = _generate_title_from_text(user_text)
-        chat = Chat.objects.create(user=request.user, title=title, model=model)
-        created = True
-
-    Message.objects.create(chat=chat, role='user', content=user_text)
-
-    # Fetch recent context (up to 20 last messages)
+    # Rebuild context and call OpenAI
     recent_messages = list(
         Message.objects.filter(chat=chat)
         .order_by('-created_at')[:20]
@@ -308,13 +362,11 @@ def send_message(request: HttpRequest) -> JsonResponse:
     )
     recent_messages.reverse()
 
-    payload = _build_openai_payload(model=model, messages=recent_messages)
-
+    payload = _build_openai_payload(model=model, messages=recent_messages, user=request.user)
     headers = {
         'Authorization': f'Bearer {OPENAI_API_KEY}',
         'Content-Type': 'application/json',
     }
-
     try:
         resp = requests.post(OPENAI_API_URL, headers=headers, data=json.dumps(payload), timeout=90)
         resp.raise_for_status()
@@ -324,17 +376,6 @@ def send_message(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'error': str(e)}, status=500)
 
     Message.objects.create(chat=chat, role='assistant', content=assistant_text)
-
-    # Touch the chat updated_at
     Chat.objects.filter(id=chat.id).update(updated_at=timezone.now())
 
-    return JsonResponse({
-        'chat_id': chat.id,
-        'created': created,
-        'title': chat.title,
-        'model': chat.model,
-        'assistant': {
-            'role': 'assistant',
-            'content': assistant_text,
-        },
-    })
+    return JsonResponse({'assistant': {'role': 'assistant', 'content': assistant_text}})
