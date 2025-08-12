@@ -5,35 +5,65 @@
   window.PREFERRED_VOICE = '{{ preferred_voice|escapejs }}'
   window.DEFAULT_MODEL = '{{ default_model|escapejs }}'
   window.INITIAL_CHAT_ID = '{{ initial_chat_id|default:''|escapejs }}'
+  window.CLONED_READY = {{ cloned_voice_ready|safe }}
 </script>
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 min-h-[70vh]">
-  <aside class="md:col-span-1 bg-white border rounded-lg overflow-hidden flex flex-col">
-    <div class="p-4 border-b flex items-center justify-between">
-      <h3 class="font-semibold">Your Chats</h3>
-      <button id="newChatBtn" class="text-sm px-3 py-1 bg-primary text-white rounded">New</button>
+<div class="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 min-h-[75vh]">
+  <aside class="bg-white dark:bg-neutral-900 border rounded-lg overflow-hidden flex flex-col shadow">
+    <div class="p-4 border-b dark:border-neutral-800 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <button id="themeToggle" class="px-2 py-1 text-sm border rounded dark:border-neutral-700 hover:bg-gray-50 dark:hover:bg-neutral-800 transition">🌙/☀️</button>
+        <h3 class="font-semibold">Chats</h3>
+      </div>
+      <button id="newChatBtn" class="text-sm px-3 py-1 bg-primary text-white rounded hover:opacity-90 transition">New</button>
     </div>
-    <div id="chatList" class="flex-1 overflow-y-auto divide-y"></div>
+    <div class="p-3 border-b dark:border-neutral-800">
+      <input id="chatSearch" class="w-full p-2 border rounded dark:bg-neutral-900 dark:border-neutral-700" placeholder="Search chats..." />
+    </div>
+    <div id="chatList" class="flex-1 overflow-y-auto divide-y dark:divide-neutral-800"></div>
   </aside>
 
-  <section class="md:col-span-2 bg-white border rounded-lg flex flex-col">
-    <div class="p-4 border-b flex items-center gap-3 flex-wrap">
-      <select id="modelSelect" class="p-2 border rounded">
+  <section class="bg-white dark:bg-neutral-900 border rounded-lg flex flex-col shadow">
+    <div class="p-3 border-b dark:border-neutral-800 flex items-center gap-3 flex-wrap">
+      <select id="modelSelect" class="p-2 border rounded dark:bg-neutral-900 dark:border-neutral-700">
         <option value="gpt-4o-mini">gpt-4o-mini</option>
         <option value="gpt-4o">gpt-4o</option>
         <option value="gpt-4.1-mini">gpt-4.1-mini</option>
         <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
       </select>
-      <span id="chatTitle" class="font-semibold text-gray-700"></span>
+      <select id="voiceSelect" class="p-2 border rounded dark:bg-neutral-900 dark:border-neutral-700">
+        <option value="">Edge: Preferred</option>
+      </select>
+      <span class="text-xs text-gray-500 dark:text-gray-400">Voice cloning: <span id="cloneState" class="font-medium"></span></span>
+      <span id="chatTitle" class="font-semibold text-gray-700 dark:text-gray-200"></span>
     </div>
 
-    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"></div>
+    <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-neutral-950"></div>
 
-    <div class="p-4 border-t">
-      <form id="sendForm" class="flex gap-2">
+    <div class="p-3 border-t dark:border-neutral-800">
+      <form id="sendForm" class="flex items-end gap-2">
         {% csrf_token %}
-        <input id="messageInput" class="flex-1 p-2 border rounded" placeholder="Type a message..." />
-        <button class="px-4 py-2 bg-primary text-white rounded">Send</button>
+        <div class="flex-1 flex flex-col gap-2">
+          <textarea id="messageInput" class="w-full min-h-[48px] max-h-48 p-3 border rounded resize-y dark:bg-neutral-900 dark:border-neutral-700" placeholder="Type a message..." ></textarea>
+          <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>Model</span>
+            <select id="modelSelectInline" class="p-1 border rounded dark:bg-neutral-900 dark:border-neutral-700">
+              <option value="gpt-4o-mini">gpt-4o-mini</option>
+              <option value="gpt-4o">gpt-4o</option>
+              <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+              <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+            </select>
+            <span>Voice</span>
+            <select id="voiceSelectInline" class="p-1 border rounded dark:bg-neutral-900 dark:border-neutral-700">
+              <option value="">Edge: Preferred</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="recordBtn" type="button" class="px-3 py-2 border rounded hover:bg-gray-50 dark:hover:bg-neutral-800 transition">🎙️</button>
+          <button class="px-4 py-2 bg-primary text-white rounded hover:opacity-90 transition">Send</button>
+        </div>
       </form>
+      <div class="text-xs text-gray-500 dark:text-gray-400 mt-2">Click the speaker icon on assistant messages to listen. If voice cloning is configured, cloned voice will be used.</div>
     </div>
   </section>
 </div>
@@ -46,12 +76,27 @@
   const sendForm = document.getElementById('sendForm');
   const messageInput = document.getElementById('messageInput');
   const modelSelect = document.getElementById('modelSelect');
+  const modelSelectInline = document.getElementById('modelSelectInline');
+  const voiceSelect = document.getElementById('voiceSelect');
+  const voiceSelectInline = document.getElementById('voiceSelectInline');
   const chatTitleEl = document.getElementById('chatTitle');
   const newChatBtn = document.getElementById('newChatBtn');
+  const chatSearch = document.getElementById('chatSearch');
+  const themeToggle = document.getElementById('themeToggle');
+  const recordBtn = document.getElementById('recordBtn');
+  const cloneState = document.getElementById('cloneState');
 
   let currentChatId = window.INITIAL_CHAT_ID || '';
   let currentModel = window.DEFAULT_MODEL || modelSelect.value;
-  if (currentModel) modelSelect.value = currentModel;
+  if (currentModel) { modelSelect.value = currentModel; modelSelectInline.value = currentModel; }
+
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const savedTheme = localStorage.getItem('theme') || (prefersDark ? 'dark' : 'light');
+  document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+  themeToggle.addEventListener('click', ()=>{
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  });
 
   function getCookie(name){
     const v=`; ${document.cookie}`.split(`; ${name}=`);
@@ -61,7 +106,7 @@
   function renderChatItem(chat){
     const a = document.createElement('a');
     a.href = '#';
-    a.className = 'block p-3 hover:bg-gray-50 ' + (String(chat.id)===String(currentChatId) ? 'bg-gray-100' : '');
+    a.className = 'block p-3 hover:bg-gray-50 dark:hover:bg-neutral-800 transition ' + (String(chat.id)===String(currentChatId) ? 'bg-gray-100 dark:bg-neutral-800' : '');
     a.textContent = chat.title;
     a.addEventListener('click', (e)=>{ e.preventDefault(); selectChat(chat.id); });
     return a;
@@ -71,7 +116,10 @@
     const res = await fetch('/chat/list/');
     const data = await res.json();
     chatListEl.innerHTML = '';
-    data.chats.forEach(c => chatListEl.appendChild(renderChatItem(c)));
+    const q = chatSearch.value.trim().toLowerCase();
+    data.chats
+      .filter(c => !q || c.title.toLowerCase().includes(q))
+      .forEach(c => chatListEl.appendChild(renderChatItem(c)));
   }
 
   function renderMessage(msg){
@@ -79,7 +127,7 @@
     const isUser = msg.role === 'user';
     wrap.className = 'flex ' + (isUser ? 'justify-end' : 'justify-start');
     const bubble = document.createElement('div');
-    bubble.className = 'max-w-[80%] rounded px-3 py-2 ' + (isUser ? 'bg-primary text-white rounded-br-none' : 'bg-white border rounded-bl-none');
+    bubble.className = 'max-w-[80%] rounded px-3 py-2 transition transform ' + (isUser ? 'bg-primary text-white rounded-br-none animate-[slideIn_.25s_ease]' : 'bg-white dark:bg-neutral-900 border dark:border-neutral-800 text-gray-900 dark:text-gray-100 rounded-bl-none animate-[slideIn_.25s_ease]');
     bubble.textContent = msg.content;
     wrap.appendChild(bubble);
 
@@ -87,8 +135,9 @@
       const controls = document.createElement('div');
       controls.className = 'flex items-center gap-2 ml-2';
       const listenBtn = document.createElement('button');
-      listenBtn.className = 'text-sm px-2 py-1 border rounded hover:bg-gray-50';
-      listenBtn.textContent = 'Listen';
+      listenBtn.className = 'text-sm px-2 py-1 border rounded hover:bg-gray-50 dark:hover:bg-neutral-800';
+      listenBtn.textContent = '🔊';
+      listenBtn.title = 'Play audio';
       listenBtn.addEventListener('click', ()=>playTTS(msg.content));
       controls.appendChild(listenBtn);
       wrap.appendChild(controls);
@@ -103,6 +152,7 @@
     messagesEl.innerHTML = '';
     chatTitleEl.textContent = data.chat.title;
     modelSelect.value = data.chat.model || modelSelect.value;
+    modelSelectInline.value = modelSelect.value;
     currentModel = modelSelect.value;
     data.messages.forEach(m => messagesEl.appendChild(renderMessage(m)));
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -114,14 +164,33 @@
     await loadChat(chatId);
   }
 
+  async function ensureChatCreated(initialText){
+    if (currentChatId) return currentChatId;
+    const form = new URLSearchParams();
+    form.set('title', initialText || '');
+    form.set('model', modelSelect.value);
+    const res = await fetch('/chat/create/', { method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: form });
+    const data = await res.json();
+    currentChatId = data.chat_id;
+    await loadChats();
+    return currentChatId;
+  }
+
   async function sendMessage(e){
     e && e.preventDefault();
     const text = messageInput.value.trim();
     if (!text) return;
+
+    await ensureChatCreated(text);
+
     const form = new URLSearchParams();
     form.set('message', text);
     if (currentChatId) form.set('chat_id', currentChatId);
     form.set('model', modelSelect.value);
+
+    // Optimistic render
+    messagesEl.appendChild(renderMessage({role:'user', content:text}));
+    messagesEl.scrollTop = messagesEl.scrollHeight;
 
     const res = await fetch('/chat/send/', {
       method: 'POST',
@@ -138,30 +207,94 @@
       currentChatId = data.chat_id;
       await loadChats();
     }
-    // Render user and assistant messages
-    messagesEl.appendChild(renderMessage({role:'user', content:text}));
     messagesEl.appendChild(renderMessage(data.assistant));
     messagesEl.scrollTop = messagesEl.scrollHeight;
     chatTitleEl.textContent = data.title;
     messageInput.value = '';
   }
 
+  async function populateVoices(){
+    // Edge voices
+    try {
+      const res = await fetch('/tts/voices/?young=1&gender=female&locale=en-us&limit=50');
+      const data = await res.json();
+      const voices = data.voices || [];
+      function fill(select){
+        select.innerHTML = '';
+        const opt0 = document.createElement('option');
+        opt0.value = '';
+        opt0.textContent = 'Edge: Preferred';
+        select.appendChild(opt0);
+        voices.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.shortName; opt.textContent = `${v.shortName} (${v.gender})`;
+          select.appendChild(opt);
+        });
+        if (window.PREFERRED_VOICE) select.value = window.PREFERRED_VOICE;
+      }
+      fill(voiceSelect); fill(voiceSelectInline);
+    } catch {}
+
+    cloneState.textContent = window.CLONED_READY ? 'Ready' : 'Not set';
+  }
+
   async function playTTS(text){
-    const voice = window.PREFERRED_VOICE || 'en-US-AriaNeural';
-    const resp = await fetch('/tts/speak/', {
-      method: 'POST',
-      headers: {'X-CSRFToken': getCookie('csrftoken')},
-      body: new URLSearchParams({text, voice})
-    });
+    const selected = voiceSelect.value || voiceSelectInline.value || '';
+    const usingEdge = !!selected;
+    let resp;
+    if (!usingEdge && window.CLONED_READY) {
+      resp = await fetch('/tts/clone/speak/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+        body: new URLSearchParams({text})
+      });
+    } else {
+      const voice = selected || (window.PREFERRED_VOICE || 'en-US-AriaNeural');
+      resp = await fetch('/tts/speak/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCookie('csrftoken')},
+        body: new URLSearchParams({text, voice})
+      });
+    }
     if (!resp.ok) return;
     const blob = await resp.blob();
     const audio = new Audio(URL.createObjectURL(blob));
     audio.play();
   }
 
-  modelSelect.addEventListener('change', ()=>{
-    currentModel = modelSelect.value;
+  // Recording and upload for cloning
+  let mediaRecorder; let recordedChunks = [];
+  async function startRecording(){
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      const form = new FormData();
+      form.append('audio', blob, 'sample.webm');
+      form.append('name', 'Cloned Voice');
+      const res = await fetch('/tts/clone/upload/', { method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}, body: form });
+      if (res.ok) {
+        window.CLONED_READY = true; cloneState.textContent = 'Ready';
+        alert('Voice cloned successfully.');
+      } else {
+        const err = await res.text(); alert(err || 'Failed to clone voice');
+      }
+    };
+    mediaRecorder.start();
+  }
+  function stopRecording(){ mediaRecorder && mediaRecorder.state !== 'inactive' && mediaRecorder.stop(); }
+
+  let recording = false;
+  recordBtn.addEventListener('click', async ()=>{
+    if (!recording){ recording = true; recordBtn.textContent = '⏹️'; await startRecording(); }
+    else { recording = false; recordBtn.textContent = '🎙️'; stopRecording(); }
   });
+
+  modelSelect.addEventListener('change', ()=>{ currentModel = modelSelect.value; modelSelectInline.value = currentModel; });
+  modelSelectInline.addEventListener('change', ()=>{ currentModel = modelSelectInline.value; modelSelect.value = currentModel; });
+
   newChatBtn.addEventListener('click', async ()=>{
     currentChatId = '';
     chatTitleEl.textContent = '';
@@ -169,11 +302,9 @@
     messageInput.focus();
   });
   sendForm.addEventListener('submit', sendMessage);
+  chatSearch.addEventListener('input', loadChats);
 
-  loadChats().then(()=>{
-    if (currentChatId) {
-      loadChat(currentChatId);
-    }
-  });
+  populateVoices();
+  loadChats().then(()=>{ if (currentChatId) { loadChat(currentChatId); } });
 </script>
 {% endblock %}

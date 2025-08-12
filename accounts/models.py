@@ -33,6 +33,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     preferred_voice = models.CharField(max_length=100, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    # New: optional cloned voice linkage
+    cloned_voice_provider = models.CharField(max_length=50, blank=True, default='')
+    cloned_voice_id = models.CharField(max_length=100, blank=True, default='')
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = []

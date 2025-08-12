@@ -7,4 +7,5 @@ urlpatterns = [
     path('list/', views.list_chats, name='list_chats'),
     path('api/chat/<int:chat_id>/', views.get_chat, name='get_chat'),
     path('send/', views.send_message, name='send_message'),
+    path('create/', views.create_chat, name='create_chat'),
 ]
